@@ -1,0 +1,611 @@
+#!/bin/env perl
+
+our $VERSION = "v0.77 24 Mar 2017";
+
+=pod
+
+=head1 NAME
+
+colorsummarizer - generates color summary of an image in plain-text, XML or JSON format
+
+=head1 SYNOPSIS
+
+  # output format XML, text or JSON
+  colorsummarizer -image img/ferns-100.jpg -xml
+  colorsummarizer -image img/ferns-100.jpg -text
+  colorsummarizer -image img/ferns-100.jpg -json
+
+  # get image size
+  colorsummarizer -image img/ferns-100.jpg -info
+
+  # process all images in a directory
+  colorsummarizer -dir "images/*jpg"
+
+  # resize input image
+  colorsummarizer -image img/ferns-100.jpg -width 50 -text
+
+  # crop input image before resizing, horizontally by 20 pixels and vertically by 10 pixels
+  colorsummarizer -image img/ferns-100.jpg -width 50 -cropx 20 -cropy 10  -text
+
+  # crop left by 20, right by 50, top by 10 and bottom by 30
+  colorsummarizer -image img/ferns-100.jpg -width 50 -cropx 20,50 -cropy 10,30  -text
+
+  # extract a rectangle from the image with top left corner at (20,10) and 
+  # width 50 and height 100
+  colorsummarizer -image img/ferns-100.jpg -width 50 -cropx 20 -cropw 50 -cropy 10 -croph 100 -text
+
+  # crop input image before resizing by 25 pixels on all sides
+  colorsummarizer -image img/ferns-100.jpg -width 50 -crop 25 -text
+
+  # interpret the images as a grid of images and analyze each one independently
+  colorsummarizer -image img/ferns-100.jpg -grid 2,3
+
+  # include histogram data
+  colorsummarizer -image img/ferns-100.jpg -text -histogram
+
+  # include raw pixel data
+  colorsummarizer -image img/ferns-100.jpg -text -pixel
+
+  # include aggregate statistics for each color space channel
+  colorsummarizer -image img/ferns-100.jpg -text -stats
+
+  # include image uniformity statistics across radius RADIUS (pixels)
+  colorsummarizer -image img/ferns-100.jpg -text -uniformity RADIUS
+
+  # combine outputs
+  colorsummarizer -image img/ferns-100.jpg -text -stats -histogram
+
+  # all stats
+  colorsummarizer -image img/ferns-100.jpg -text -all
+
+  # include color cluster data for k=5 clusters
+  colorsummarizer -image img/ferns-100.jpg -text -clusters 5
+
+  # clip pixels with transparency when clustering
+  colorsummarizer -image img/ferns-100.jpg -text -clusters 5 -clip transparent
+
+  # do not include names of nearest colors
+  colorsummarizer -image img/ferns-100.jpg -text -clusters 5 -clip transparent -no-names
+
+  # clip other kinds of pixels when clustering (e.g. black, white, green)
+  colorsummarizer -image img/ferns-100.jpg -text -clusters 5 -clip transparent,white,black,green
+
+  # create images from each color cluster in directory DIR
+  # if DIR is not specified, then directory of the image will be used
+  colorsummarizer -image img/ferns-100.jpg -text -clusters 5 -clip transparent,white,black,green -clusterimage DIR
+
+  # use configuration
+  colorsummarizer -conf colorsummarizer.conf
+
+  # dump configuation
+  colorsummarizer -cdump
+
+  # print debugging information
+  colorsummarizer -debug
+
+  # print timings
+  colorsummarizer -timer
+
+=head1 DESCRIPTION
+
+There is an online version with documentation about how the summarizer works at
+
+  http://mkweb.bcgsc.ca/color-summarizer/?faq
+
+Briefly, each pixel's RGB values are sampled and statistics for variables R, G, B, H, L, S are collated. Each variable has its own block in the output, which can be plain-text or marked-up (XML, JSON).
+
+For example, in plain-text output, aggregate statistics are shown like this
+
+ stat lch c avg 16
+ stat lch c median 19
+ stat lch c min 0
+ stat lch c max 26
+ stat lch h avg 253 1.00
+ stat lch h median 252
+ stat lch h min 0
+ stat lch h max 360
+ stat lch l avg 47
+ stat lch l median 53
+ stat lch l min 1
+ stat lch l max 84
+
+here shown for the LCH color space for each of the L, C and H components.
+
+Histograms are shown like this,
+
+ hist lch c 0 5
+ hist lch c 1 100
+ hist lch c 2 127
+ ...
+ hist lch c 24 97
+ hist lch c 25 17
+ hist lch c 26 7
+ hist lch h 0 2
+ hist lch h 2 2
+ hist lch h 3 2
+ ...
+
+and give the number of pixels (e.g. 127) for a specific component value (C = 2).
+
+Also available are individual pixel statistics using -pixel and k-means clustering using -clusters.
+
+Image uniformity reports aggregate statistics for the average deltaE in LCH space for neighbourhoods of radius R around each pixel. The pN values are percentiles (e.g. p10 is 10th percentile).
+
+ uniformity mean 8.22 median 3.14 stddev 20.16 p5 1.38 p10 1.72 p25 2.27 p75 4.82 p90 9.78 p95 50.78
+
+=head1 HISTORY
+
+=head2 24 Mar 2017
+
+Added progress reports when analyzing more than one image at a time using -dir.
+
+Added -timer
+
+=head2 26 Jul 2016
+
+Added -cropw and -cropy.
+
+You can now specify different left and right (and top and bottom) crop values using -cropx x1,x2 and -cropy y1,y2.
+
+Added -no-names to exclude reporting nearest color names.
+
+Added -info.
+
+Added -grid.
+
+=head2 24 Jun 2016
+
+-man no longer requires perldoc
+
+=head2 15 Jun 2016
+ 
+Added -dir.
+
+Added -uniformity RADIUS.
+
+=head2 14 Jun 2016
+
+Modified documentation. Added cropping.
+
+=head2 2 Mar 2016
+
+Changed from GD to Imager. Good grief.
+
+=head2 26 Feb 2016
+
+Added -stats. Now -histogram, -pixel, -stats are no longer default.
+
+=head2 8 Jan 2016
+
+Updated POD.
+
+=head2 16 Oct 2015
+
+Reworked code to compute average hue in a more robust way
+
+  https://en.wikipedia.org/wiki/Mean_of_circular_quantities
+
+Added k-means clustering.
+
+=head2 10 Mar 2014
+
+Added -histogram and -pixel.
+
+Added -xml and -text.
+
+Added -rgb, -hsv, -lab, -lch.
+
+=head1 BUGS
+
+=head1 AUTHOR
+
+Martin Krzywinski
+
+=head1 CONTACT
+
+  Martin Krzywinski
+  Genome Sciences Centre
+  Vancouver BC Canada
+  www.bcgsc.ca
+  martink@bcgsc.ca
+
+=cut
+
+use strict;
+use Config::General;
+use Data::Dumper;
+use File::Basename;
+use FindBin;
+use Getopt::Long;
+use IO::File;
+use Time::HiRes qw(gettimeofday tv_interval);
+use Math::VecStat qw(sum min max average);
+use Math::Round qw(round nearest);
+use Pod::Usage;
+use Pod::Text;
+use Statistics::Descriptive;
+use Statistics::Distributions;
+use Statistics::Basic qw(median stddev mean);
+use Storable;
+use SVG;
+use lib "$FindBin::RealBin";
+use lib "$FindBin::RealBin/../lib";
+use lib "$FindBin::RealBin/lib";
+use vars qw(%OPT %CONF);
+
+use colordebug;
+use colorspace;
+use imagehandler;
+use imagehistogram;
+use imagereport;
+use colornames;
+use imagecluster;
+use peravg;
+use imagesampler;
+
+use constant PI => 4*atan2(1,1);
+
+no warnings;
+
+################################################################
+#
+# *** YOUR MODULE IMPORTS HERE
+#
+################################################################
+
+GetOptions(\%OPT,
+
+					 "file=s",
+					 "dir=s",
+
+					 "type=s",
+					 "image=s",
+					 "info",
+
+					 "stats!",
+					 "all",
+					 "histogram!",
+					 "uniformity!",
+					 "pixel!",
+					 "names!",
+					 "grid=s",
+					 "clusters=i",
+					 "cluster_min_dE=f",
+					 "clusterimage:s",
+					 "clip=s",
+					 "crop=f",
+					 "cropx=f",
+					 "cropy=f",
+					 "cropw=f",
+					 "croph=f",
+					 "text",
+					 "xml",
+					 "json",
+
+					 "width=i",
+
+					 "spaces=s",
+					 "sampler=s",
+
+					 "rgb",
+					 "hsv",
+					 "hsl",
+					 "lch",
+					 "xyz",
+					 "xyy",
+					 "cmy",
+					 "cmyk",
+					 "lab",
+
+					 "out=s",
+					 "svg=s",
+
+					 "version",
+					 "configfile=s",
+					 "help",
+					 "man",
+					 "cdump",
+					 "debug",
+					 "timer",
+					);
+
+pod2usage() if $OPT{help};
+pod2usage(-verbose=>2,-noperldoc=>1) if $OPT{man};
+loadconfiguration($OPT{configfile});
+populateconfiguration();
+validateconfiguration();
+if($CONF{version}) {
+	&colordebug::printinfo($VERSION);
+	exit;
+}
+if($CONF{cdump}) {
+  $Data::Dumper::Indent    = 1;
+  $Data::Dumper::Quotekeys = 0;
+  $Data::Dumper::Terse     = 1;
+  print Dumper(\%CONF);
+	exit;
+}
+
+sub validateconfiguration {
+	$CONF{file}    = $CONF{image} if $CONF{image};
+  $CONF{file}    ||= "toast.jpg" if ! $CONF{dir};
+	$CONF{text}    ||= 1 if ! $CONF{xml} && ! $CONF{json} && ! $CONF{text};
+	$CONF{spaces}  ||= "rgb,hsv,lch,lab,cmyk";
+	$CONF{width}   ||= 100;
+	if($CONF{all}) {
+		for my $x (qw(histogram stats pixel)) {
+			$CONF{$x} = 1;
+		}
+	}
+}
+
+my @spaces = split(",",$CONF{spaces});
+
+my @files;
+
+if ($CONF{dir}) {
+	@files = glob($CONF{dir});
+} else {
+	@files = ($CONF{file});
+}
+
+if(! @files) {
+	die "Specify input file with -file or input directory with -dir";
+}
+
+my $clusters;
+my $fidx = 0;
+my $timer = [gettimeofday];
+for my $f (@files) {
+	die "Cannot find input image $f" unless -e $f;
+	my ($w,$h) = imagesampler::get_image_size($f);
+	if(@files > 1) {
+		&colordebug::printerr("analyzing",$f);
+	}
+	if($CONF{info}) {
+		&colordebug::printinfo($f,$w,$h);
+	} elsif($CONF{grid}) {
+		my ($gridx,$gridy) = split(",",$CONF{grid});
+		$gridy ||= ($h/$w)*$gridx;
+		my $cropw = $w/$gridx;
+		my $croph = $h/$gridy;
+		for my $j (0..$gridy-1) {
+			my $cropy = $j*$croph;
+			for my $i (0..$gridx-1) {
+				my $cropx = $i*$cropw;
+				@CONF{qw(cropx cropy cropw croph)} = map {round $_ } ($cropx,$cropy,$cropw,$croph);
+				my $cluster_data = process_image($f,
+																				 -include_filename=>1,
+																				 -gridx=>$i,
+																				 -gridy=>$j);
+				$clusters->[$fidx][$j][$i] = $cluster_data;
+			}
+		}
+	} else {
+		my $cluster_data = process_image($f,-include_filename=>1);
+	}
+	$fidx++;
+}
+printtimer($timer) if $CONF{timer};
+
+exit;
+
+################################################################
+################################################################
+################################################################
+
+sub process_image {
+	my $file = shift;
+	my %args = @_;
+
+	# imgdata->{space}{SPACE}[x + w*y] = [a,b,c]
+	# imgdata->[x + w*y]{cobj}         = Graphics::ColorObject() for pixel
+	# imgdata->{file}                  filename
+	# imgdata->{size}{w}               image width
+	# imgdata->{size}{h}               image height
+
+	&colordebug::printdebug("sampling...");
+	my ($imgdata,$error) = imagesampler::sample_image(-file    => $file,
+																										-spaces  => [@spaces],
+																										-cropx   => $CONF{cropx} || $CONF{crop},
+																										-cropy   => $CONF{cropy} || $CONF{crop},
+																										-cropw   => $CONF{cropw},
+																										-croph   => $CONF{croph},
+																										-resizew => $CONF{width});
+
+	my @deltaE;
+	if($CONF{uniformity}) {
+		&colordebug::printdebug("uniformity...");
+		my $r = $CONF{uniformity};
+		my $r2 = $r*$r;
+		for my $x0 (0..$imgdata->{size}{w}-1) {
+			for my $y0 (0..$imgdata->{size}{h}-1) {
+				my $i0   = $x0 + $imgdata->{size}{w}*$y0;
+				my $lch0 = $imgdata->{space}{lch}[ $i0 ];
+				my @deltaE0;
+				for my $x ($x0 - $r .. $x0 + $r) {
+					next if $x < 0;
+					next if $x >= $imgdata->{size}{w};
+					for my $y ($y0 - $r .. $y0 + $r) {
+						next if $y < 0;
+						next if $y >= $imgdata->{size}{h};
+						my $d2  = ($x-$x0)**2+($y-$y0)**2;
+						next unless $d2 <= $r2;
+						my $i   = $x + $imgdata->{size}{w}*$y;
+						my $lch = $imgdata->{space}{lch}[ $i ];
+						my $deltaE = sqrt(($lch0->[0]-$lch->[0])**2 + 
+															($lch0->[1]-$lch->[1])**2 + 
+															($lch0->[2]-$lch->[2])**2);
+						push @deltaE0, $deltaE;
+						#printinfo($x0,$y0,$i0,$x,$y,$i,$deltaE);
+					}
+				}
+				push @deltaE, mean(@deltaE0)->query;
+			}
+		}
+	}
+
+	die $error if $error;
+	my $nclusters        = $CONF{clusters};
+
+	# $cluster_data->{id}[ID]{value}       = [ [a1,b1,c1], [a2,b2,c2], ... ] list of colors in cluster
+	# $cluster_data->{id}[ID]{avg}{SPACE}  = [a,b,c] average color in cluster for color space SPACE
+	# $cluster_data->{id}[ID]{n}           = number of pixels in cluster
+	# $cluster_data->{id}[ID]{f}           = fraction of pixels in cluster
+	# $cluster_data->{id}[ID]{rank}        = cluster rank (0,1,2...) in descending order of total pixels in cluster
+
+	my $cluster_data;
+
+	if ($nclusters) {
+		my $cluster_dE;
+		do {
+			&colordebug::printdebug("clustering",$nclusters);
+			$cluster_data = imagecluster::cluster_image_colors(-imgdata         => $imgdata,
+																												 -nclusters       => $nclusters,
+																												 -npass           => $CONF{cluster}{pass},
+																												 -minnsol         => $CONF{cluster}{min_n_sol},
+																												 -retrysol        => $CONF{cluster}{retry_sol},
+																												 -minnsolt        => $CONF{cluster}{min_n_sol_throttle},
+																												 -retrysolt       => $CONF{cluster}{retry_sol_throttle},
+																												 -coordmask       => $CONF{cluster}{coord_mask},
+																												 -coordweight     => $CONF{cluster}{coord_weight},
+																												 -dist            => $CONF{cluster}{dist},
+																												 -method          => $CONF{cluster}{method},
+																												 -clipwhite       => $CONF{clip} =~ /white/ || 0,
+																												 -clipblack       => $CONF{clip} =~ /black/ || 0,
+																												 -clipalpha       => $CONF{clip} =~ /trans/ || 0,
+																												 -clipgreen       => $CONF{clip} =~ /green/ || 0,
+																												 -file            => $file,
+																												 -make_images     => defined $CONF{clusterimage} ? $CONF{clusterimage} : exists $CONF{clusterimage} ? 0 : undef,
+																												 -space           => $CONF{cluster}{space});
+			$cluster_dE = undef;
+			for my $i (0..$nclusters-1) {
+				for my $j ($i+1..$nclusters-1) {
+					my $dE = colornames::deltaE( $cluster_data->{id}[$i]{avg}{lab},
+																			 $cluster_data->{id}[$j]{avg}{lab} );
+					$cluster_dE = $dE if ! defined $cluster_dE || $dE < $cluster_dE;
+				}
+			}
+			&colordebug::printdebug("min_cluster_de",$nclusters,$cluster_dE);
+		} while (--$nclusters && $cluster_dE < $CONF{cluster}{cluster_min_de});
+	}
+
+	if(! defined $CONF{names} || $CONF{names}) {
+		my $db = colornames::read_color_name_file($CONF{color_names});
+		if ($db) {
+			for my $cluster_id (@{$cluster_data->{id_sorted}}) {
+				my $rgb       = $cluster_data->{id}[$cluster_id]{avg}{rgb};
+				my $neighbour = colornames::find_neighbours($rgb,$db,-namerx=>$CONF{color_names_rx});
+				$cluster_data->{id}[$cluster_id]{neighbour} = $neighbour;
+			}
+		}
+	}
+
+	# $histogram_data->{SPACE}{COMPONENT}{avg}
+	# $histogram_data->{SPACE}{COMPONENT}{median}
+	# $histogram_data->{SPACE}{COMPONENT}{min}
+	# $histogram_data->{SPACE}{COMPONENT}{max}
+	# $histogram_data->{SPACE}{COMPONENT}{hist}
+
+	&colordebug::printdebug("calculating stats...");
+	my $histogram_data    = imagehistogram::make_histograms(-imgdata   => $imgdata,
+																													-stats     => $CONF{stats}     || 0,
+																													-histogram => $CONF{histogram} || 0);
+
+	# report
+
+	&colordebug::printdebug("generating reports...");
+	my ($text,$xml,$json,$jsonb) = imagereport::text_report(-img_data       => $imgdata,
+																													-cluster_data   => $cluster_data,
+																													-histogram_data => $histogram_data,
+																													-deltaE         => \@deltaE,
+																													-filename       => 1,
+																													-stats          => $CONF{stats}     ||0,
+																													-pixel          => $CONF{pixel}     ||0,
+																													-histogram      => $CONF{histogram} ||0,
+																												 );
+	my $pre_str = "$file " if $args{-include_filename};
+	$pre_str = "$args{-gridx} $args{-gridy} $pre_str" if defined $args{-gridx};
+	if ($CONF{xml}) {
+		&colordebug::printinfo(join("\n",map {join(" ",@$_)} @$xml))
+	} elsif ($CONF{json}) {
+		#&colordebug::printinfo($json);					#join("\n",map {join(" ",@$_)} @$json));
+		&colordebug::printinfo($jsonb);
+	} else {
+		&colordebug::printinfo(join("\n",map {$pre_str . join(" ",@$_)} @$text));
+	}
+	return $cluster_data;
+}
+
+sub safe_div {
+	my ($x,$y) = @_;
+	return 0 if ! $x;
+	return $y ? $x/$y : "-";
+}
+
+exit;
+
+################################################################
+#
+# *** DO NOT EDIT BELOW THIS LINE ***
+#
+################################################################
+
+sub populateconfiguration {
+  foreach my $key (keys %OPT) {
+    $CONF{$key} = $OPT{$key};
+  }
+
+  # any configuration fields of the form __XXX__ are parsed and replaced with eval(XXX). The configuration
+  # can therefore depend on itself.
+  #
+  # flag = 10
+  # note = __2*$CONF{flag}__ # would become 2*10 = 20
+
+  for my $key (keys %CONF) {
+    my $value = $CONF{$key};
+    while($value =~ /__([^_].+?)__/g) {
+      my $source = "__" . $1 . "__";
+      my $target = eval $1;
+      $value =~ s/\Q$source\E/$target/g;
+      #&colordebug::printinfo($source,$target,$value);
+    }
+    $CONF{$key} = $value;
+  }
+
+}
+
+sub loadconfiguration {
+  my $file = shift;
+  my ($scriptname) = fileparse($0,".exe");
+  if(-e $file && -r _) {
+    # great the file exists
+  } elsif (-e "$scriptname.conf" && -r _) {
+    $file = "$scriptname.conf";
+  } elsif (-e "/home/$ENV{LOGNAME}/.$scriptname.conf" && -r _) {
+    $file = "/home/$ENV{LOGNAME}/.$scriptname.conf";
+  } elsif (-e "$FindBin::RealBin/$scriptname.conf" && -r _) {
+    $file = "$FindBin::RealBin/$scriptname.conf";
+  } elsif (-e "$FindBin::RealBin/etc/$scriptname.conf" && -r _) {
+    $file = "$FindBin::RealBin/etc/$scriptname.conf";
+  } elsif (-e "$FindBin::RealBin/../etc/$scriptname.conf" && -r _) {
+    $file = "$FindBin::RealBin/../etc/$scriptname.conf";
+  } else {
+    return undef;
+  }
+  $OPT{configfile} = $file;
+  my $CONF = new Config::General(-ConfigFile=>$file,
+				 -AllowMultiOptions=>"yes",
+				 -LowerCaseNames=>1,
+				 -AutoTrue=>1);
+  %CONF = $CONF->getall;
+}
+
+sub printdumper {
+  &colordebug::printinfo(Dumper(@_));
+}
+
+sub printtimer {
+  my $t0 = shift;
+  &colordebug::printinfo(sprintf("timer %.2f",tv_interval($t0)));
+}
